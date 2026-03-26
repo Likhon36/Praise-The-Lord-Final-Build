@@ -23,35 +23,41 @@ jobs:
       - name: 🧹 Clean up
         run: rm -rf ios
         
-      - name: 🪄 Generate iOS project
-        run: flutter create --platforms=ios .
+      - name: 🪄 Generate iOS project & Fix iOS Version
+        run: |
+          flutter create --platforms=ios .
+          # This line forces the project to compile for iOS 13.0, fixing your plugin crashes!
+          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
 
       - name: 📦 Install dependencies
         run: flutter pub get
 
       - name: 🏗️ Build App (Bypass Signing Error)
-        # We tell GitHub to keep moving even when Xcode inevitably fails the signing check
+        # We still use this to bypass the final signing check
         run: flutter build ios --release --no-codesign || true
 
       - name: 📂 Package IPA
         run: |
           echo "Hunting for the generated Runner.app..."
-          # Find the Runner.app directory wherever Xcode left it
           APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
           
           if [ -z "$APP_PATH" ]; then
             echo "❌ Runner.app was not found!"
             exit 1
           fi
+
+          # SAFETY CHECK: Make sure the app folder isn't an empty shell
+          if [ ! -f "$APP_PATH/Runner" ]; then
+            echo "❌ The app binary is missing! The build crashed before finishing. Check the logs."
+            exit 1
+          fi
           
-          echo "✅ Found Runner.app at: $APP_PATH"
+          echo "✅ Found a fully compiled Runner.app at: $APP_PATH"
           mkdir -p Payload
+          mv "$APP_PATH" Payload/
           
-          # The '-a' flag preserves all symlinks, ownership, and permissions
-          cp -a "$APP_PATH" Payload/
-          
-          # The '-y' flag tells zip to keep symlinks intact instead of breaking them
-          zip -ry PraiseTheLord.ipa Payload
+          # Use Apple's native archiver to keep the app structure perfectly intact
+          ditto -c -k --keepParent Payload PraiseTheLord.ipa
 
       - name: 📤 Upload binaries to release
         uses: svenstaro/upload-release-action@v2
