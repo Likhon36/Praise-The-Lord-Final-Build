@@ -30,6 +30,7 @@ jobs:
         run: flutter pub get
 
       - name: 🏗️ Build App (Bypass Signing Error)
+        # We tell GitHub to keep moving even when Xcode inevitably fails the signing check
         run: flutter build ios --release --no-codesign || true
 
       - name: 📂 Package IPA
@@ -39,16 +40,18 @@ jobs:
           APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "❌ Runner.app was not found! The build crashed before generating the app payload. Check the 'Build App' logs."
+            echo "❌ Runner.app was not found!"
             exit 1
           fi
           
           echo "✅ Found Runner.app at: $APP_PATH"
           mkdir -p Payload
-          # Copy it to our payload folder
-          cp -R "$APP_PATH" Payload/
-          # Zip it up into the final IPA
-          zip -r PraiseTheLord.ipa Payload
+          
+          # The '-a' flag preserves all symlinks, ownership, and permissions
+          cp -a "$APP_PATH" Payload/
+          
+          # The '-y' flag tells zip to keep symlinks intact instead of breaking them
+          zip -ry PraiseTheLord.ipa Payload
 
       - name: 📤 Upload binaries to release
         uses: svenstaro/upload-release-action@v2
