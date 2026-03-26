@@ -20,6 +20,12 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: 🧹 Remove invalid ios file
+        run: rm -f ios
+        
+      - name: 🪄 Generate iOS project files
+        run: flutter create --platforms=ios .
+
       - name: 📦 Install dependencies
         run: flutter pub get
 
