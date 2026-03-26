@@ -32,23 +32,34 @@ jobs:
       - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🏗️ Build App (Ghost Payload Trick)
-        # Flutter compiles the code, Xcode crashes at signing, GitHub ignores the crash and keeps moving.
+      - name: 🏗️ Build Dart Code (Bypass Flutter Signing)
+        # Flutter prepares the project and compiles Dart, but fails at Xcode signing. We ignore this.
         run: flutter build ios --release --no-codesign || true
+
+      - name: 🔨 Force Xcode to Compile Binary
+        # We manually step in and force Xcode to compile the raw executable binary by disabling ALL signing natively
+        run: |
+          cd ios
+          xcodebuild build -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
 
       - name: 📂 Package Unsigned IPA
         run: |
           echo "Hunting for the generated Runner.app..."
-          APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
+          # Target the specific build folder Xcode uses for physical devices
+          APP_PATH=$(find . -name "Runner.app" -type d | grep "Release-iphoneos" | head -n 1)
+          
+          # Fallback just in case
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
+          fi
           
           if [ -z "$APP_PATH" ]; then
             echo "❌ Runner.app was not found!"
             exit 1
           fi
 
-          # The Ultimate Test: Is the actual compiled app inside the folder this time?
           if [ ! -f "$APP_PATH/Runner" ]; then
-            echo "❌ The app binary is missing! Xcode blocked the compilation early."
+            echo "❌ The app binary is missing! Xcode still blocked the compilation."
             exit 1
           fi
           
