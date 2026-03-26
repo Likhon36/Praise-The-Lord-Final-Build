@@ -30,30 +30,31 @@ jobs:
         run: flutter pub get
 
       - name: 🏗️ Build App (Bypass Signing Error)
-        # The '|| true' is the magic command here. 
-        # It tells GitHub: "Even if this command throws an error and crashes, mark it as a green success and keep moving."
         run: flutter build ios --release --no-codesign || true
 
       - name: 📂 Package IPA
         run: |
-          cd build/ios/iphoneos
+          echo "Hunting for the generated Runner.app..."
+          # Find the Runner.app directory wherever Xcode left it
+          APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
           
-          # Check if the ghost payload was successfully left behind
-          if [ -d "Runner.app" ]; then
-            echo "Runner.app found! Packaging..."
-            mkdir -p Payload
-            mv Runner.app Payload/
-            zip -r PraiseTheLord.ipa Payload
-          else
-            echo "Error: Runner.app not found. The build failed before it reached the signing phase."
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ Runner.app was not found! The build crashed before generating the app payload. Check the 'Build App' logs."
             exit 1
           fi
+          
+          echo "✅ Found Runner.app at: $APP_PATH"
+          mkdir -p Payload
+          # Copy it to our payload folder
+          cp -R "$APP_PATH" Payload/
+          # Zip it up into the final IPA
+          zip -r PraiseTheLord.ipa Payload
 
       - name: 📤 Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/ios/iphoneos/PraiseTheLord.ipa
+          file: PraiseTheLord.ipa
           asset_name: PraiseTheLord.ipa
           tag: v1.0
           overwrite: true
