@@ -26,30 +26,29 @@ jobs:
       - name: 🪄 Generate iOS project & Fix iOS Version
         run: |
           flutter create --platforms=ios .
-          # Ensure iOS 13 minimum to prevent plugin crashes
+          # Ensure iOS 13 minimum so plugins compile perfectly
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
 
       - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🏗️ Build App Archive
-        # THE FIX: Building an 'ipa' archive bypasses the strict device checks
-        # and generates a complete, unsigned .app folder we can extract.
-        run: flutter build ipa --release --no-codesign
+      - name: 🏗️ Build App (Ghost Payload Trick)
+        # Flutter compiles the code, Xcode crashes at signing, GitHub ignores the crash and keeps moving.
+        run: flutter build ios --release --no-codesign || true
 
       - name: 📂 Package Unsigned IPA
         run: |
-          echo "Hunting for the generated Runner.app inside the archive..."
-          # Look inside the new archive folder Flutter just created
-          APP_PATH=$(find build/ios/archive -name "Runner.app" -type d | head -n 1)
+          echo "Hunting for the generated Runner.app..."
+          APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "❌ Runner.app was not found! The archive failed."
+            echo "❌ Runner.app was not found!"
             exit 1
           fi
 
+          # The Ultimate Test: Is the actual compiled app inside the folder this time?
           if [ ! -f "$APP_PATH/Runner" ]; then
-            echo "❌ The app binary is missing! Xcode blocked the compilation."
+            echo "❌ The app binary is missing! Xcode blocked the compilation early."
             exit 1
           fi
           
@@ -57,7 +56,7 @@ jobs:
           mkdir -p Payload
           mv "$APP_PATH" Payload/
           
-          # Use Apple's native archiver to keep the app structure perfectly intact
+          # Use Apple's native archiver to prevent "Bad file descriptor" errors
           ditto -c -k --keepParent Payload PraiseTheLord.ipa
 
       - name: 📤 Upload binaries to release
