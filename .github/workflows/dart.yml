@@ -23,8 +23,13 @@ jobs:
       - name: 🧹 Remove invalid ios file
         run: rm -f ios
         
-      - name: 🪄 Generate iOS project files
-        run: flutter create --platforms=ios .
+      - name: 🪄 Generate iOS project & Bypass Signing
+        run: |
+          flutter create --platforms=ios .
+          # Force Xcode to completely ignore code signing requirements
+          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=-" >> ios/Flutter/Release.xcconfig
 
       - name: 📦 Install dependencies
         run: flutter pub get
