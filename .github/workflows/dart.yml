@@ -11,8 +11,6 @@ jobs:
     name: 🎉 iOS Build
     runs-on: macos-latest
     
-    # Removed the global working-directory because your files are in the root
-
     steps:
       - name: 🔍 Checkout code
         uses: actions/checkout@v4
@@ -27,7 +25,7 @@ jobs:
 
       - name: 🛠️ Update Pods
         run: pod repo update
-        working-directory:
+        working-directory: ios
 
       - name: 🏗️ Build iOS Release (Unsigned)
         run: flutter build ios --release --no-codesign
