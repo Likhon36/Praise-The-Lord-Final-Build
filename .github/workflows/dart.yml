@@ -20,24 +20,28 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: 🧹 Clean up
-        run: rm -rf ios
-        
-      - name: 🪄 Generate iOS project & Fix iOS Version
+      - name: 🧹 Deep Clean
         run: |
-          flutter create --platforms=ios .
-          # Ensure iOS 13 minimum so plugins compile perfectly
+          flutter clean
+          rm -rf ios
+          rm -rf .dart_tool
+        
+      - name: 🪄 Recreate iOS & Fix Podfile
+        run: |
+          # Use the exact name from your pubspec.yaml to avoid URI errors
+          flutter create --project-name praise_the_lord_flutter --platforms=ios .
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
 
-      - name: 📦 Install dependencies
+      - name: 📦 Get Packages
         run: flutter pub get
 
-      - name: 🏗️ Build Dart Code (Bypass Flutter Signing)
-        # Flutter prepares the project and compiles Dart, but fails at Xcode signing. We ignore this.
+      - name: 🏗️ Build App (Ignoring Signatures)
+        # This compiles the code. Even if it says "Failed" at the end, 
+        # as long as it compiles the DART code, we are good.
         run: flutter build ios --release --no-codesign || true
 
-      - name: 🔨 Force Xcode to Compile Binary
-        # We manually step in and force Xcode to compile the raw executable binary by disabling ALL signing natively
+      - name: 🔨 Force Binary Generation
+        # This is the heavy lifter that turns your code into an actual executable
         run: |
           cd ios
           xcodebuild build -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
@@ -45,32 +49,25 @@ jobs:
       - name: 📂 Package Unsigned IPA
         run: |
           echo "Hunting for the generated Runner.app..."
-          # Target the specific build folder Xcode uses for physical devices
-          APP_PATH=$(find . -name "Runner.app" -type d | grep "Release-iphoneos" | head -n 1)
+          # Look specifically in the build folder where xcodebuild puts the result
+          APP_PATH=$(find build/ios/iphoneos -name "Runner.app" -type d | head -n 1)
           
-          # Fallback just in case
           if [ -z "$APP_PATH" ]; then
+            echo "❌ Runner.app not found in build/ios/iphoneos. Searching everywhere..."
             APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
-          fi
-          
-          if [ -z "$APP_PATH" ]; then
-            echo "❌ Runner.app was not found!"
-            exit 1
           fi
 
           if [ ! -f "$APP_PATH/Runner" ]; then
-            echo "❌ The app binary is missing! Xcode still blocked the compilation."
+            echo "❌ The actual binary 'Runner' is missing from the folder!"
             exit 1
           fi
           
           echo "✅ Found a fully compiled Runner.app at: $APP_PATH"
           mkdir -p Payload
-          mv "$APP_PATH" Payload/
-          
-          # Use Apple's native archiver to prevent "Bad file descriptor" errors
+          cp -R "$APP_PATH" Payload/
           ditto -c -k --keepParent Payload PraiseTheLord.ipa
 
-      - name: 📤 Upload binaries to release
+      - name: 📤 Upload to Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -78,4 +75,4 @@ jobs:
           asset_name: PraiseTheLord.ipa
           tag: v1.0
           overwrite: true
-          body: "Unsigned IPA Build for Praise-The-Lord."
+          body: "Compiled Unsigned IPA"
