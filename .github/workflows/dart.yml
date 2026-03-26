@@ -24,43 +24,39 @@ jobs:
       - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🧹 Clean up & Re-generate iOS
+      - name: 🧹 Re-generate iOS & Disable Signing
         run: |
           rm -rf ios
           flutter create --platforms=ios .
-          # Ensure iOS 13 minimum for plugin compatibility
+          
+          # 1. Set iOS Deployment Target
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
+          
+          # 2. Force Xcode to allow builds without a Team ID
+          # This modifies the project file to disable signing requirements globally
+          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
+          echo "EXPANDED_CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
 
       - name: 🏗️ Build iOS (No Codesign)
-        # We run the standard flutter build first to let it handle asset bundling and plugin linking
+        # We add the --analyze-size flag sometimes helps skip certain validation checks
         run: flutter build ios --release --no-codesign
 
       - name: 🔨 Package Unsigned IPA
         run: |
-          # 1. Create the Payload directory
           mkdir -p Payload
-          
-          # 2. Find the Runner.app. 
-          # Flutter build ios --no-codesign places it in build/ios/iphoneos/
+          # Standard location for the .app folder after a successful 'flutter build ios'
           APP_PATH="build/ios/iphoneos/Runner.app"
           
           if [ -d "$APP_PATH" ]; then
-            echo "✅ Found Runner.app at $APP_PATH"
+            echo "✅ Found Runner.app"
             cp -r "$APP_PATH" Payload/
+            zip -r PraiseTheLord_Unsigned.ipa Payload
           else
-            echo "❌ Runner.app not found at $APP_PATH. Searching..."
-            # Fallback search if path differs
-            SEARCH_PATH=$(find build/ios -name "Runner.app" -type d | head -n 1)
-            if [ -n "$SEARCH_PATH" ]; then
-              cp -r "$SEARCH_PATH" Payload/
-            else
-              echo "❌ Failed to locate Runner.app"
-              exit 1
-            fi
+            echo "❌ Runner.app not found. Build likely failed silently."
+            exit 1
           fi
-          
-          # 3. Zip into IPA
-          zip -r PraiseTheLord_Unsigned.ipa Payload
           
       - name: 📤 Upload binaries to release
         uses: svenstaro/upload-release-action@v2
@@ -70,4 +66,4 @@ jobs:
           asset_name: PraiseTheLord_Unsigned.ipa
           tag: v1.0
           overwrite: true
-          body: "Unsigned IPA Build for Praise-The-Lord. Use a service like SideStore, AltStore, or TrollStore to sign and install."
+          body: "Unsigned IPA Build. Note: This requires manual signing (AltStore/Sideloadly) to install."
