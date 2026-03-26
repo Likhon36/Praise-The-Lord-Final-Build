@@ -19,60 +19,55 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
-      - name: 🧹 Deep Clean
-        run: |
-          flutter clean
-          rm -rf ios
-          rm -rf .dart_tool
-        
-      - name: 🪄 Recreate iOS & Fix Podfile
-        run: |
-          # Use the exact name from your pubspec.yaml to avoid URI errors
-          flutter create --project-name praise_the_lord_flutter --platforms=ios .
-          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
-
-      - name: 📦 Get Packages
+      - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🏗️ Build App (Ignoring Signatures)
-        # This compiles the code. Even if it says "Failed" at the end, 
-        # as long as it compiles the DART code, we are good.
-        run: flutter build ios --release --no-codesign || true
-
-      - name: 🔨 Force Binary Generation
-        # This is the heavy lifter that turns your code into an actual executable
+      - name: 🧹 Clean up & Re-generate iOS
         run: |
-          cd ios
-          xcodebuild build -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+          rm -rf ios
+          flutter create --platforms=ios .
+          # Ensure iOS 13 minimum for plugin compatibility
+          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
 
-      - name: 📂 Package Unsigned IPA
+      - name: 🏗️ Build iOS (No Codesign)
+        # We run the standard flutter build first to let it handle asset bundling and plugin linking
+        run: flutter build ios --release --no-codesign
+
+      - name: 🔨 Package Unsigned IPA
         run: |
-          echo "Hunting for the generated Runner.app..."
-          # Look specifically in the build folder where xcodebuild puts the result
-          APP_PATH=$(find build/ios/iphoneos -name "Runner.app" -type d | head -n 1)
-          
-          if [ -z "$APP_PATH" ]; then
-            echo "❌ Runner.app not found in build/ios/iphoneos. Searching everywhere..."
-            APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
-          fi
-
-          if [ ! -f "$APP_PATH/Runner" ]; then
-            echo "❌ The actual binary 'Runner' is missing from the folder!"
-            exit 1
-          fi
-          
-          echo "✅ Found a fully compiled Runner.app at: $APP_PATH"
+          # 1. Create the Payload directory
           mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
-          ditto -c -k --keepParent Payload PraiseTheLord.ipa
-
-      - name: 📤 Upload to Release
+          
+          # 2. Find the Runner.app. 
+          # Flutter build ios --no-codesign places it in build/ios/iphoneos/
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          
+          if [ -d "$APP_PATH" ]; then
+            echo "✅ Found Runner.app at $APP_PATH"
+            cp -r "$APP_PATH" Payload/
+          else
+            echo "❌ Runner.app not found at $APP_PATH. Searching..."
+            # Fallback search if path differs
+            SEARCH_PATH=$(find build/ios -name "Runner.app" -type d | head -n 1)
+            if [ -n "$SEARCH_PATH" ]; then
+              cp -r "$SEARCH_PATH" Payload/
+            else
+              echo "❌ Failed to locate Runner.app"
+              exit 1
+            fi
+          fi
+          
+          # 3. Zip into IPA
+          zip -r PraiseTheLord_Unsigned.ipa Payload
+          
+      - name: 📤 Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: PraiseTheLord.ipa
-          asset_name: PraiseTheLord.ipa
+          file: PraiseTheLord_Unsigned.ipa
+          asset_name: PraiseTheLord_Unsigned.ipa
           tag: v1.0
           overwrite: true
-          body: "Compiled Unsigned IPA"
+          body: "Unsigned IPA Build for Praise-The-Lord. Use a service like SideStore, AltStore, or TrollStore to sign and install."
