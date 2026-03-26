@@ -26,10 +26,8 @@ jobs:
       - name: 🪄 Generate iOS project & Bypass Signing
         run: |
           flutter create --platforms=ios .
-          # Force Xcode to completely ignore code signing requirements
-          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGN_IDENTITY=-" >> ios/Flutter/Release.xcconfig
+          # Aggressively strip out all Xcode code-signing requirements inside the core project file
+          sed -i '' 's/buildSettings = {/buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = "-"; DEVELOPMENT_TEAM = ""; /g' ios/Runner.xcodeproj/project.pbxproj
 
       - name: 📦 Install dependencies
         run: flutter pub get
