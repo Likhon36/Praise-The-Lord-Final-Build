@@ -1,0 +1,66 @@
+name: praise_the_lord_flutter
+description: "Praise the LORD - Bengali Christian Hymns App. A comprehensive collection of 1,396 Bengali hymns with search (Bengali and Banglish), favorites, and offline functionality."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI and Material Design
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.1.0
+  
+  # State Management
+  provider: ^6.1.0
+  
+  # Local Storage & Persistence
+  shared_preferences: ^2.2.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  
+  # JSON Serialization
+  json_serializable: ^6.8.0
+  json_annotation: ^4.8.1
+  
+  # Utilities
+  intl: ^0.19.0
+  uuid: ^4.0.0
+  
+  # Navigation
+  go_router: ^13.0.0
+  
+  # Async & Futures
+  async: ^2.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.9
+  json_serializable: ^6.8.0
+  hive_generator: ^2.0.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/songs.json
+    - assets/images/icon.png
+    - assets/images/splash.png
+
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Italic.ttf
+          style: italic
