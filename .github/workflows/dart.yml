@@ -27,7 +27,7 @@ jobs:
 
       - name: 🛠️ Update Pods
         run: pod repo update
-        working-directory: main
+        working-directory:
 
       - name: 🏗️ Build iOS Release (Unsigned)
         run: flutter build ios --release --no-codesign
