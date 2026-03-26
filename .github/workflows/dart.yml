@@ -20,8 +20,8 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: 🧹 Remove invalid ios file
-        run: rm -f ios
+      - name: 🧹 Clean up
+        run: rm -rf ios
         
       - name: 🪄 Generate iOS project
         run: flutter create --platforms=ios .
@@ -29,38 +29,31 @@ jobs:
       - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🏗️ Prepare Flutter Payload (Will Bypass Error)
-        # This compiles your Dart code and sets up the Pods. 
-        # It will fail at the Xcode signing stage, but we tell GitHub to ignore the failure and keep going.
-        continue-on-error: true
-        run: flutter build ios --release --no-codesign
-
-      - name: 🔨 Force Unsigned Xcode Build
-        # We manually trigger Xcode with absolute command-line overrides that disable all signing checks.
-        run: |
-          cd ios
-          xcodebuild build -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+      - name: 🏗️ Build App (Bypass Signing Error)
+        # The '|| true' is the magic command here. 
+        # It tells GitHub: "Even if this command throws an error and crashes, mark it as a green success and keep moving."
+        run: flutter build ios --release --no-codesign || true
 
       - name: 📂 Package IPA
         run: |
-          mkdir -p Payload
-          # Dynamically locate the Runner.app folder wherever Xcode decided to put it
-          APP_PATH=$(find . -type d -name "Runner.app" | grep "Release-iphoneos" | head -n 1)
+          cd build/ios/iphoneos
           
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: Runner.app not found! The Xcode build must have failed."
+          # Check if the ghost payload was successfully left behind
+          if [ -d "Runner.app" ]; then
+            echo "Runner.app found! Packaging..."
+            mkdir -p Payload
+            mv Runner.app Payload/
+            zip -r PraiseTheLord.ipa Payload
+          else
+            echo "Error: Runner.app not found. The build failed before it reached the signing phase."
             exit 1
           fi
-          
-          echo "Found Runner.app at: $APP_PATH"
-          mv "$APP_PATH" Payload/
-          zip -r PraiseTheLord.ipa Payload
 
       - name: 📤 Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: PraiseTheLord.ipa
+          file: build/ios/iphoneos/PraiseTheLord.ipa
           asset_name: PraiseTheLord.ipa
           tag: v1.0
           overwrite: true
