@@ -23,35 +23,45 @@ jobs:
       - name: 🧹 Remove invalid ios file
         run: rm -f ios
         
-      - name: 🪄 Generate iOS project & Bypass Signing
-        run: |
-          flutter create --platforms=ios .
-          # Aggressively strip out all Xcode code-signing requirements inside the core project file
-          sed -i '' 's/buildSettings = {/buildSettings = { CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; CODE_SIGN_IDENTITY = "-"; DEVELOPMENT_TEAM = ""; /g' ios/Runner.xcodeproj/project.pbxproj
+      - name: 🪄 Generate iOS project
+        run: flutter create --platforms=ios .
 
       - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🛠️ Update Pods
-        run: pod repo update
-        working-directory: ios
-
-      - name: 🏗️ Build iOS Release (Unsigned)
+      - name: 🏗️ Prepare Flutter Payload (Will Bypass Error)
+        # This compiles your Dart code and sets up the Pods. 
+        # It will fail at the Xcode signing stage, but we tell GitHub to ignore the failure and keep going.
+        continue-on-error: true
         run: flutter build ios --release --no-codesign
 
-      - name: 📂 Create IPA Structure
+      - name: 🔨 Force Unsigned Xcode Build
+        # We manually trigger Xcode with absolute command-line overrides that disable all signing checks.
+        run: |
+          cd ios
+          xcodebuild build -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+
+      - name: 📂 Package IPA
         run: |
           mkdir -p Payload
-          mv Runner.app Payload/
-          zip -r FlutterIpaExport.ipa Payload
-        working-directory: build/ios/iphoneos
+          # Dynamically locate the Runner.app folder wherever Xcode decided to put it
+          APP_PATH=$(find . -type d -name "Runner.app" | grep "Release-iphoneos" | head -n 1)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Runner.app not found! The Xcode build must have failed."
+            exit 1
+          fi
+          
+          echo "Found Runner.app at: $APP_PATH"
+          mv "$APP_PATH" Payload/
+          zip -r PraiseTheLord.ipa Payload
 
       - name: 📤 Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/ios/iphoneos/FlutterIpaExport.ipa
+          file: PraiseTheLord.ipa
           asset_name: PraiseTheLord.ipa
           tag: v1.0
           overwrite: true
-          body: "IPA Build for Praise-The-Lord."
+          body: "Unsigned IPA Build for Praise-The-Lord."
