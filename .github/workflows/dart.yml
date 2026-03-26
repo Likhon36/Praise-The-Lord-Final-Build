@@ -26,29 +26,30 @@ jobs:
       - name: 🪄 Generate iOS project & Fix iOS Version
         run: |
           flutter create --platforms=ios .
-          # This line forces the project to compile for iOS 13.0, fixing your plugin crashes!
+          # Ensure iOS 13 minimum to prevent plugin crashes
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
 
       - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: 🏗️ Build App (Bypass Signing Error)
-        # We still use this to bypass the final signing check
-        run: flutter build ios --release --no-codesign || true
+      - name: 🏗️ Build App Archive
+        # THE FIX: Building an 'ipa' archive bypasses the strict device checks
+        # and generates a complete, unsigned .app folder we can extract.
+        run: flutter build ipa --release --no-codesign
 
-      - name: 📂 Package IPA
+      - name: 📂 Package Unsigned IPA
         run: |
-          echo "Hunting for the generated Runner.app..."
-          APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
+          echo "Hunting for the generated Runner.app inside the archive..."
+          # Look inside the new archive folder Flutter just created
+          APP_PATH=$(find build/ios/archive -name "Runner.app" -type d | head -n 1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "❌ Runner.app was not found!"
+            echo "❌ Runner.app was not found! The archive failed."
             exit 1
           fi
 
-          # SAFETY CHECK: Make sure the app folder isn't an empty shell
           if [ ! -f "$APP_PATH/Runner" ]; then
-            echo "❌ The app binary is missing! The build crashed before finishing. Check the logs."
+            echo "❌ The app binary is missing! Xcode blocked the compilation."
             exit 1
           fi
           
