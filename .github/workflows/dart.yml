@@ -29,35 +29,33 @@ jobs:
           rm -rf ios
           flutter create --platforms=ios .
           
-          # 1. Set Deployment Target
+          # 1. Set Deployment Target to 13.0
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
           
-          # 2. THE BYPASS: Inject No-Sign rules into the project
-          # We add a fake Team ID and disable signing requirements in the build config
+          # 2. Inject Bypass into Release.xcconfig
+          # This satisfies Xcode's requirement for a Team ID without needing a real one
           echo "DEVELOPMENT_TEAM=ACTION12345" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
 
-      - name: 🏗️ Build iOS (Force Bypass)
-        # Using 'build ios' with extra manual flags to ensure Xcode ignores signing
-        run: |
-          flutter build ios --release --no-codesign \
-          --extra-front-end-options=--no-implicit-dynamic-tests \
-          --split-debug-info=build/symbols
+      - name: 🏗️ Build iOS (Clean Build)
+        # Removed the experimental extra-front-end flags to prevent FormatException
+        run: flutter build ios --release --no-codesign
 
       - name: 🔨 Package Unsigned IPA
         run: |
           mkdir -p Payload
-          # Path where Flutter exports the .app bundle
+          # Standard location for the .app bundle
           APP_PATH="build/ios/iphoneos/Runner.app"
           
           if [ -d "$APP_PATH" ]; then
-            echo "✅ Runner.app created successfully."
+            echo "✅ Runner.app found. Packaging..."
             cp -r "$APP_PATH" Payload/
             zip -r PraiseTheLord_Unsigned.ipa Payload
           else
-            echo "❌ Build failed to produce Runner.app"
+            echo "❌ Build failed to produce Runner.app. Checking build logs..."
+            find build/ios -name "*.app"
             exit 1
           fi
           
@@ -69,4 +67,4 @@ jobs:
           asset_name: PraiseTheLord_Unsigned.ipa
           tag: v1.0
           overwrite: true
-          body: "Bypassed signing build. This IPA is unsigned and needs a tool like AltStore or TrollStore to install."
+          body: "Bypassed signing build. Use AltStore, Sideloadly, or TrollStore to install."
